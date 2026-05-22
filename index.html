@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+ 
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+ 
+    <title>FastAPI RAG Chatbot</title>
+ 
+    <style>
+ 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+ 
+        body {
+            background: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            padding: 40px;
+        }
+ 
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+ 
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+ 
+        p {
+            text-align: center;
+            color: gray;
+            margin-bottom: 30px;
+        }
+ 
+        .section {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+ 
+        .section h2 {
+            margin-bottom: 15px;
+        }
+ 
+        input[type="file"] {
+            width: 100%;
+            margin-bottom: 15px;
+        }
+ 
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            background: black;
+            color: white;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+ 
+        button:hover {
+            opacity: 0.9;
+        }
+ 
+        .chat-box {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 12px;
+            background: #fafafa;
+            margin-bottom: 15px;
+        }
+ 
+        .message {
+            margin-bottom: 15px;
+            padding: 12px;
+            border-radius: 10px;
+            max-width: 80%;
+        }
+ 
+        .user {
+            background: black;
+            color: white;
+            margin-left: auto;
+        }
+ 
+        .bot {
+            background: white;
+            border: 1px solid #ddd;
+        }
+ 
+        .chat-input-container {
+            display: flex;
+            gap: 10px;
+        }
+ 
+        .chat-input-container input {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #ccc;
+        }
+ 
+        .disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+ 
+        .success {
+            color: green;
+            margin-top: 10px;
+        }
+ 
+    </style>
+</head>
+ 
+<body>
+ 
+    <div class="container">
+ 
+        <h1>📄 FastAPI RAG Chatbot</h1>
+ 
+        <p>Upload PDF and chat with your document</p>
+ 
+ 
+        <!-- Upload Section -->
+ 
+        <div class="section">
+ 
+            <h2>Upload PDF</h2>
+ 
+            <input
+                type="file"
+                id="pdfFile"
+                accept="application/pdf"
+            />
+ 
+            <button onclick="uploadPDF()">
+                Upload PDF
+            </button>
+ 
+            <div
+                id="uploadMessage"
+                class="success"
+            ></div>
+ 
+        </div>
+ 
+ 
+        <!-- Chat Section -->
+ 
+        <div
+            class="section disabled"
+            id="chatSection"
+        >
+ 
+            <h2>Chat With PDF</h2>
+ 
+            <div
+                class="chat-box"
+                id="chatBox"
+            >
+                <p id="initialText">
+                    Please upload a PDF first...
+                </p>
+            </div>
+ 
+            <div class="chat-input-container">
+ 
+                <input
+                    type="text"
+                    id="userInput"
+                    placeholder="Ask something..."
+                />
+ 
+                <button onclick="sendMessage()">
+                    Send
+                </button>
+ 
+            </div>
+ 
+        </div>
+ 
+    </div>
+ 
+ 
+    <script>
+ 
+        const BASE_URL = "http://127.0.0.1:8000"
+ 
+        let pdfUploaded = false
+ 
+ 
+        // =========================
+        // UPLOAD PDF
+        // =========================
+ 
+        async function uploadPDF() {
+ 
+            const fileInput = document.getElementById("pdfFile")
+ 
+            const file = fileInput.files[0]
+ 
+            if (!file) {
+ 
+                alert("Please select a PDF file")
+ 
+                return
+            }
+ 
+            const formData = new FormData()
+ 
+            formData.append("file", file)
+ 
+            try {
+ 
+                const response = await fetch(
+                    `${BASE_URL}/upload-pdf`,
+                    {
+                        method: "POST",
+                        body: formData
+                    }
+                )
+ 
+                const data = await response.json()
+ 
+                document.getElementById(
+                    "uploadMessage"
+                ).innerText = data.message
+ 
+                pdfUploaded = true
+ 
+                // Enable chat section
+                document.getElementById(
+                    "chatSection"
+                ).classList.remove("disabled")
+ 
+                document.getElementById(
+                    "initialText"
+                ).innerText = "PDF uploaded successfully. Start chatting!"
+ 
+            } catch (error) {
+ 
+                console.log(error)
+ 
+                alert("Error uploading PDF")
+            }
+        }
+ 
+ 
+        // =========================
+        // SEND MESSAGE
+        // =========================
+ 
+        async function sendMessage() {
+ 
+            if (!pdfUploaded) {
+ 
+                alert("Please upload a PDF first")
+ 
+                return
+            }
+ 
+            const input = document.getElementById("userInput")
+ 
+            const query = input.value.trim()
+ 
+            if (!query) return
+ 
+            addMessage(query, "user")
+ 
+            input.value = ""
+ 
+            try {
+ 
+                const response = await fetch(
+                    `${BASE_URL}/chat`,
+                    {
+                        method: "POST",
+ 
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+ 
+                        body: JSON.stringify({
+                            query: query
+                        })
+                    }
+                )
+ 
+                const data = await response.json()
+ 
+                addMessage(data.answer, "bot")
+ 
+            } catch (error) {
+ 
+                console.log(error)
+ 
+                addMessage(
+                    "Error getting response",
+                    "bot"
+                )
+            }
+        }
+ 
+ 
+        // =========================
+        // ADD MESSAGE
+        // =========================
+ 
+        function addMessage(message, type) {
+ 
+            const chatBox = document.getElementById("chatBox")
+ 
+            const messageDiv = document.createElement("div")
+ 
+            messageDiv.classList.add(
+                "message",
+                type
+            )
+ 
+            messageDiv.innerText = message
+ 
+            chatBox.appendChild(messageDiv)
+ 
+            chatBox.scrollTop = chatBox.scrollHeight
+        }
+ 
+    </script>
+ 
+</body>
+ 
+</html>
